@@ -13,7 +13,6 @@ st.title("📊 Analyse des cartes Sorare")
 # --- BOUTON DE LANCEMENT ---
 if st.button("🚀 Lancer l'analyse en direct"):
     with st.spinner("Analyse en cours... cela peut prendre 1 à 2 minutes..."):
-        result = subprocess.run(["python", SCRIPT_PATH], capture_output=True, text=True)
         if result.returncode == 0:
             st.success("Analyse terminée avec succès.")
         else:
