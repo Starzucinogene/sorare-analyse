@@ -12,12 +12,12 @@ st.title("📊 Analyse des cartes Sorare")
 
 # --- BOUTON DE LANCEMENT ---
 if st.button("🚀 Lancer l'analyse en direct"):
-    with st.spinner("Analyse en cours... cela peut prendre 1 à 2 minutes..."):
-        if result.returncode == 0:
-            st.success("Analyse terminée avec succès.")
-        else:
-            st.error("Erreur pendant l'analyse :")
-            st.code(result.stderr)
+    with st.spinner("Analyse en cours via API Sorare..."):
+        df, alerts = scan_players()
+        df.to_csv("sorare_cards.csv", index=False)
+        st.success("Analyse terminée. Résultats mis à jour.")
+        if alerts:
+            st.warning(f"⚠️ Alertes détectées pour : {', '.join(alerts)}")
 
 # --- CHARGEMENT DES DONNÉES ---
 if not os.path.exists(CSV_PATH):
