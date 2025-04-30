@@ -5,7 +5,6 @@ import subprocess
 
 # --- CONFIGURATION ---
 CSV_PATH = "sorare_cards.csv"
-SCRIPT_PATH = "sorare_scraper_selenium.py"  # Ton script d'analyse automatisée
 
 # --- INTERFACE ---
 st.set_page_config(page_title="Analyse Sorare", layout="wide")
