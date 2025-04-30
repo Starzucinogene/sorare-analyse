@@ -1,17 +1,13 @@
 import streamlit as st
 import pandas as pd
 import os
-import subprocess
 from sorare_graphql_scraper import scan_players
-
-# --- CONFIGURATION ---
-CSV_PATH = "sorare_cards.csv"
 
 # --- INTERFACE ---
 st.set_page_config(page_title="Analyse Sorare", layout="wide")
-st.title("📊 Analyse des cartes Sorare")
+st.title("📊 Analyse des cartes Sorare via API GraphQL")
 
-# --- BOUTON DE LANCEMENT ---
+# --- ANALYSE EN DIRECT ---
 if st.button("🚀 Lancer l'analyse en direct"):
     with st.spinner("Analyse en cours via API Sorare..."):
         df, alerts = scan_players()
@@ -20,29 +16,18 @@ if st.button("🚀 Lancer l'analyse en direct"):
         if alerts:
             st.warning(f"⚠️ Alertes détectées pour : {', '.join(alerts)}")
 
-# --- CHARGEMENT DES DONNÉES ---
-if not os.path.exists(CSV_PATH):
-    st.warning("Aucune donnée CSV détectée. Lance d'abord une analyse.")
+# --- CHARGEMENT CSV ---
+if not os.path.exists("sorare_cards.csv"):
+    st.warning("Aucune donnée détectée. Lancez une analyse.")
 else:
-    df = pd.read_csv(CSV_PATH)
+    df = pd.read_csv("sorare_cards.csv")
 
     # Filtres
     st.sidebar.header("Filtres")
-    markets = st.sidebar.multiselect("Marché", options=df["Marché"].unique(), default=df["Marché"].unique())
-    positions = st.sidebar.multiselect("Poste", options=df["Poste"].unique(), default=df["Poste"].unique())
-    rarities = st.sidebar.multiselect("Rareté", options=df["Rareté"].unique(), default=df["Rareté"].unique())
-    max_price = st.sidebar.slider("Prix max ETH", 0.0, float(df["Prix API (ETH)"].max()), float(df["Prix API (ETH)"].max()))
-
-    # Application des filtres
-    df_filtered = df[
-        (df["Marché"].isin(markets)) &
-        (df["Poste"].isin(positions)) &
-        (df["Rareté"].isin(rarities)) &
-        (df["Prix API (ETH)"] <= max_price)
-    ]
+    max_eth = st.sidebar.slider("Prix max ETH", 0.0, float(df["min_price_eth"].max()), float(df["min_price_eth"].max()))
+    df_filtered = df[df["min_price_eth"] <= max_eth]
 
     st.markdown(f"**{len(df_filtered)} cartes trouvées** sur {len(df)} totales")
     st.dataframe(df_filtered, use_container_width=True)
 
-    if st.button("📥 Télécharger CSV filtré"):
-        st.download_button("Télécharger", data=df_filtered.to_csv(index=False), file_name="sorare_filtre.csv")
+    st.download_button("📥 Télécharger CSV filtré", data=df_filtered.to_csv(index=False), file_name="sorare_filtre.csv")

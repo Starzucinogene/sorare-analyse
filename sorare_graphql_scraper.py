@@ -1,34 +1,96 @@
-import streamlit as st
+import requests
+import time
 import pandas as pd
-import os
-import subprocess
-from sorare_graphql_scraper import scan_players
 
-# --- INTERFACE ---
-st.set_page_config(page_title="Analyse Sorare", layout="wide")
-st.title("📊 Analyse des cartes Sorare via API GraphQL")
+ETH_EUR_API = "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=eur"
+SORARE_API = "https://api.sorare.com/graphql"
 
-# --- ANALYSE EN DIRECT ---
-if st.button("🚀 Lancer l'analyse en direct"):
-    with st.spinner("Analyse en cours via API Sorare..."):
-        df, alerts = scan_players()
-        df.to_csv("sorare_cards.csv", index=False)
-        st.success("Analyse terminée. Résultats mis à jour.")
-        if alerts:
-            st.warning(f"⚠️ Alertes détectées pour : {', '.join(alerts)}")
+HEADERS = {"Content-Type": "application/json"}
 
-# --- CHARGEMENT CSV ---
-if not os.path.exists("sorare_cards.csv"):
-    st.warning("Aucune donnée détectée. Lancez une analyse.")
-else:
-    df = pd.read_csv("sorare_cards.csv")
+LIMIT = 5
+ALERT_THRESHOLD = 0.9
+TARGET_PLAYERS = ["kylian-mbappe", "erling-haaland"]
 
-    # Filtres
-    st.sidebar.header("Filtres")
-    max_eth = st.sidebar.slider("Prix max ETH", 0.0, float(df["min_price_eth"].max()), float(df["min_price_eth"].max()))
-    df_filtered = df[df["min_price_eth"] <= max_eth]
+def get_eth_to_eur():
+    try:
+        r = requests.get(ETH_EUR_API)
+        return r.json()['ethereum']['eur']
+    except:
+        return None
 
-    st.markdown(f"**{len(df_filtered)} cartes trouvées** sur {len(df)} totales")
-    st.dataframe(df_filtered, use_container_width=True)
+def get_listed_prices(slug):
+    query = """
+    query GetListed($slug: String!) {
+      player(slug: $slug) {
+        cards(first: 5) {
+          nodes {
+            liveSingleSaleOffer {
+              price
+            }
+          }
+        }
+      }
+    }
+    """
+    variables = {"slug": slug}
+    res = requests.post(SORARE_API, json={"query": query, "variables": variables}, headers=HEADERS)
+    try:
+        prices = [int(c["liveSingleSaleOffer"]["price"]) / 1e18 for c in res.json()["data"]["player"]["cards"]["nodes"] if c["liveSingleSaleOffer"]]
+        return prices
+    except:
+        return []
 
-    st.download_button("📥 Télécharger CSV filtré", data=df_filtered.to_csv(index=False), file_name="sorare_filtre.csv")
+def get_sales_history(slug):
+    query = """
+    query GetSales($slug: String!) {
+      player(slug: $slug) {
+        cardSample(first: 5) {
+          nodes {
+            price
+          }
+        }
+      }
+    }
+    """
+    variables = {"slug": slug}
+    res = requests.post(SORARE_API, json={"query": query, "variables": variables}, headers=HEADERS)
+    try:
+        prices = [int(c["price"]) / 1e18 for c in res.json()["data"]["player"]["cardSample"]["nodes"]]
+        return prices
+    except:
+        return []
+
+def scan_players():
+    eth_to_eur = get_eth_to_eur() or 0
+    alerts = []
+    all_data = []
+
+    for slug in TARGET_PLAYERS:
+        listed = get_listed_prices(slug)
+        sold = get_sales_history(slug)
+        all_prices = listed + sold
+
+        if not listed or not sold:
+            continue
+
+        avg_price = sum(all_prices) / len(all_prices)
+        min_current = min(listed)
+
+        alert = min_current < avg_price * ALERT_THRESHOLD
+        eur_price = min_current * eth_to_eur
+
+        all_data.append({
+            "slug": slug,
+            "min_price_eth": min_current,
+            "min_price_eur": eur_price,
+            "avg_eth": avg_price,
+            "avg_eur": avg_price * eth_to_eur,
+            "alert": alert
+        })
+
+        if alert:
+            alerts.append(slug)
+
+        time.sleep(1.5)
+
+    return pd.DataFrame(all_data), alerts
