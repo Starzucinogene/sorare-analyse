@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import subprocess
+from sorare_graphql_scraper import scan_players
 
 # --- CONFIGURATION ---
 CSV_PATH = "sorare_cards.csv"
